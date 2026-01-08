@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>国家旗橄榄球队装备申领系统-云同步版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leancloud-storage@4.12.0/dist/av-min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+        .bg-china-red { background-color: #C8102E; }
+        .text-china-red { color: #C8102E; }
+        .border-china-red { border-color: #C8102E; }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .animate-fade { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans" x-data="proSystem()" x-init="init()">
+
+    <div x-show="loading" class="fixed inset-0 bg-white/80 z-[100] flex items-center justify-center font-bold" x-cloak>
+        <div class="text-center">
+            <div class="animate-spin mb-2 inline-block w-8 h-8 border-4 border-china-red border-t-transparent rounded-full"></div>
+            <p class="text-china-red">云端数据处理中...</p>
+        </div>
+    </div>
+
+    <nav class="bg-china-red text-white shadow-xl px-6 py-4 flex justify-between items-center sticky top-0 z-50">
+        <div class="flex items-center gap-3">
+            <div class="bg-white p-1 rounded-full"><i data-lucide="trophy" class="text-china-red w-5 h-5"></i></div>
+            <h1 class="font-black text-lg tracking-tighter uppercase">China Flag Football</h1>
+        </div>
+        <button x-show="isAdmin" @click="isAdmin = false" class="bg-white/20 px-4 py-1.5 rounded-full text-sm font-bold hover:bg-white/30 transition">
+            退出后台
+        </button>
+    </nav>
+
+    <div class="max-w-[1600px] mx-auto p-4 md:p-8">
+
+        <div x-show="isAdmin" x-cloak class="space-y-8 animate-fade">
+            <div class="flex items-center justify-between border-b pb-4">
+                <h2 class="text-2xl font-black italic uppercase">Admin Dashboard / 系统管理后台</h2>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="bg-white p-8 rounded-3xl shadow-sm border-t-8 border-china-red">
+                    <h2 class="text-xl font-bold mb-4 flex items-center gap-2"><i data-lucide="user-plus"></i> 名单导入</h2>
+                    <textarea x-model="rawNames" rows="5" class="w-full border p-4 rounded-2xl bg-gray-50 outline-none focus:border-china-red transition" placeholder="每行一个姓名..."></textarea>
+                    <div class="flex gap-4 mt-4">
+                        <button @click="importNames('男队')" class="flex-1 bg-black text-white py-3 rounded-xl font-bold">导入男队</button>
+                        <button @click="importNames('女队')" class="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-bold">导入女队</button>
+                    </div>
+                </div>
+                <div class="bg-white p-8 rounded-3xl shadow-sm border-t-8 border-blue-600">
+                    <h2 class="text-xl font-bold mb-4 flex items-center gap-2"><i data-lucide="download-cloud"></i> 云端数据汇总</h2>
+                    <div class="grid grid-cols-2 gap-4">
+                        <button @click="fetchOrders()" class="bg-blue-50 text-blue-600 py-4 rounded-2xl font-bold hover:bg-blue-100 transition flex flex-col items-center gap-1">
+                            <i data-lucide="refresh-cw" class="w-5 h-5"></i> 刷新云端订单
+                        </button>
+                        <button @click="exportToExcel()" class="bg-blue-600 text-white py-4 rounded-2xl font-bold hover:bg-blue-700 transition flex flex-col items-center gap-1">
+                            <i data-lucide="file-spreadsheet" class="w-5 h-5"></i> 导出汇总表
+                        </button>
+                    </div>
+                    <button @click="clearOrders()" class="w-full mt-4 text-red-500 text-sm font-medium hover:underline">清空云端所有历史订单</button>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-3xl shadow-sm overflow-hidden">
+                <h2 class="font-bold mb-4 italic uppercase text-gray-400 text-sm tracking-widest">订单流实时预览 (云端数据)</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead class="text-xs text-gray-400 border-b">
+                            <tr>
+                                <th class="p-4">姓名</th><th class="p-4">队伍</th><th class="p-4 text-right">总金额</th><th class="p-4">时间</th><th class="p-4 text-center">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-sm">
+                            <template x-for="(order, index) in submittedOrders" :key="index">
+                                <tr class="border-b hover:bg-gray-50 transition">
+                                    <td class="p-4 font-bold" x-text="order.userName"></td>
+                                    <td class="p-4 text-gray-500" x-text="order.team"></td>
+                                    <td class="p-4 text-right font-black text-china-red" x-text="'￥'+order.total"></td>
+                                    <td class="p-4 text-gray-400 text-xs" x-text="order.date"></td>
+                                    <td class="p-4 text-center">
+                                        <button @click="exportSingleOrder(order)" class="px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-600 hover:text-white transition-all text-xs font-bold">导出单据</button>
+                                    </td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div x-show="!isAdmin" class="animate-fade">
+            <div x-show="step === 'login'" class="max-w-md mx-auto mt-10">
+                <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl border-b-[12px] border-china-red">
+                    <h2 class="text-3xl font-black mb-8 text-center italic tracking-tighter uppercase decoration-china-red decoration-8 underline-offset-4">Identity</h2>
+                    <div class="space-y-6">
+                        <div class="grid grid-cols-2 gap-4">
+                            <button @click="user.team = '男队'" :class="user.team === '男队' ? 'bg-china-red text-white shadow-lg' : 'bg-gray-100'" class="py-5 rounded-2xl font-black transition-all">男队 MENS</button>
+                            <button @click="user.team = '女队'" :class="user.team === '女队' ? 'bg-china-red text-white shadow-lg' : 'bg-gray-100'" class="py-5 rounded-2xl font-black transition-all">女队 WOMENS</button>
+                        </div>
+                        <select x-model="user.name" class="w-full border-4 border-gray-50 p-4 rounded-2xl outline-none focus:border-china-red bg-gray-50 font-bold text-lg">
+                            <option value="">选择姓名 NAME</option>
+                            <template x-for="name in (user.team === '男队' ? maleList : femaleList)">
+                                <option :value="name" x-text="name"></option>
+                            </template>
+                        </select>
+                        <button @click="if(user.name) { step = 'scene'; refreshIcons(); }" x-show="user.name" class="w-full bg-black text-white py-5 rounded-2xl font-black shadow-xl">下一步 NEXT</button>
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="step === 'scene'" class="mt-10 max-w-4xl mx-auto px-4" x-cloak>
+                <h2 class="text-3xl font-black text-center mb-12 italic tracking-tighter uppercase">Select Scenario</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <template x-for="s in scenes">
+                        <button @click="selectedScene = s.name; step = 'order'; refreshIcons();" class="bg-white p-10 rounded-[3rem] shadow-xl hover:bg-china-red hover:text-white transition-all transform hover:-translate-y-2 text-center group">
+                            <i :data-lucide="s.icon" class="w-12 h-12 mx-auto mb-4 text-china-red group-hover:text-white"></i>
+                            <span class="text-xl font-black block uppercase" x-text="s.name"></span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+
+            <div x-show="step === 'order'" class="flex flex-col lg:flex-row gap-8 pb-20" x-cloak>
+                <div class="flex-1">
+                    <div class="flex justify-between items-center mb-6 px-4">
+                        <h2 class="text-2xl font-black italic uppercase"><span class="text-china-red" x-text="user.name"></span> / <span x-text="selectedScene"></span></h2>
+                        <button @click="step = 'scene'; refreshIcons();" class="text-xs font-bold text-gray-400 hover:text-china-red">重新选择场景</button>
+                    </div>
+                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                        <template x-for="(item, pIndex) in products" :key="pIndex">
+                            <div class="bg-white rounded-3xl p-4 shadow-sm border border-gray-100 flex gap-4 group hover:border-china-red transition-all">
+                                <div class="w-28 h-36 bg-gray-50 rounded-2xl overflow-hidden flex-shrink-0 border border-gray-50 flex items-center justify-center">
+                                    <template x-if="item.image"><img :src="item.image" class="w-full h-full object-cover"></template>
+                                    <template x-if="!item.image"><i :data-lucide="item.icon" class="w-10 h-10 text-gray-200"></i></template>
+                                </div>
+                                <div class="flex-1 flex flex-col justify-between">
+                                    <div>
+                                        <h3 class="font-black text-gray-800 text-sm" x-text="item.name"></h3>
+                                        <p class="text-china-red font-black text-xs mt-1" x-text="'￥' + item.price"></p>
+                                    </div>
+                                    <div class="grid grid-cols-3 gap-1.5 mt-3">
+                                        <template x-for="size in item.sizes">
+                                            <div class="flex flex-col items-center bg-gray-50 rounded-lg p-1">
+                                                <span class="text-[9px] font-bold text-gray-400 uppercase" x-text="size"></span>
+                                                <div class="flex items-center gap-1.5 mt-0.5">
+                                                    <button @click="updateQty(pIndex, size, -1)" class="w-5 h-5 flex items-center justify-center bg-white rounded shadow-sm hover:bg-china-red hover:text-white">-</button>
+                                                    <span class="text-xs font-black min-w-[10px] text-center" x-text="getQty(pIndex, size)"></span>
+                                                    <button @click="updateQty(pIndex, size, 1)" class="w-5 h-5 flex items-center justify-center bg-white rounded shadow-sm hover:bg-china-red hover:text-white">+</button>
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                <div class="lg:w-96 px-4 lg:px-0">
+                    <div class="bg-white rounded-[2.5rem] shadow-2xl p-6 sticky top-24 border-t-8 border-china-red flex flex-col h-[calc(100vh-140px)] min-h-[500px]">
+                        <h3 class="font-black text-xl italic mb-6 flex items-center gap-2 uppercase"><i data-lucide="shopping-cart"></i> Cart List</h3>
+                        <div class="flex-1 overflow-y-auto space-y-3 mb-6 pr-1">
+                            <template x-for="cartItem in cart">
+                                <div x-show="cartItem.qty > 0" class="flex justify-between items-center bg-slate-50 p-3 rounded-2xl">
+                                    <div>
+                                        <p class="text-xs font-black text-gray-800" x-text="products[cartItem.pIdx].name"></p>
+                                        <span class="text-[10px] bg-china-red text-white px-1.5 rounded font-bold uppercase" x-text="cartItem.size"></span>
+                                        <span class="text-[10px] font-bold text-gray-400 ml-2" x-text="'x' + cartItem.qty"></span>
+                                    </div>
+                                    <p class="font-black text-xs text-china-red" x-text="'￥' + (products[cartItem.pIdx].price * cartItem.qty)"></p>
+                                </div>
+                            </template>
+                        </div>
+                        <div class="border-t pt-6">
+                            <div class="flex justify-between items-end mb-4">
+                                <p class="text-xs font-bold text-gray-400 uppercase">Total</p>
+                                <p class="text-3xl font-black text-china-red">￥<span x-text="calculateTotal()"></span></p>
+                            </div>
+                            <button @click="submitOrder()" class="w-full bg-black text-white py-5 rounded-2xl font-black text-lg hover:bg-china-red transition-all shadow-xl">提交订单 CONFIRM</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="step === 'success'" class="text-center mt-20" x-cloak>
+                <div class="bg-green-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 text-green-600"><i data-lucide="check-circle" class="w-12 h-12"></i></div>
+                <h2 class="text-4xl font-black mb-4 italic uppercase">Success!</h2>
+                <p class="text-gray-400 mb-8 font-bold">申领单已实时同步至教练云端后台</p>
+                <button @click="reset()" class="bg-black text-white px-12 py-4 rounded-2xl font-bold hover:bg-china-red shadow-xl">返回首页 HOME</button>
+            </div>
+        </div>
+    </div>
+
+    <footer class="mt-20 py-8 text-center">
+        <p class="text-gray-300 text-[10px] select-none">
+            © 2025 Team Management System. 
+            <span @click="loginAdmin()" class="cursor-pointer hover:text-gray-400 transition-colors">Admin</span>
+        </p>
+    </footer>
+
+    <script>
+        // ======= LeanCloud 初始化配置 =======
+        // 请在此处填入你在 LeanCloud 控制台获取的凭证
+        AV.init({
+            appId: "0vbfcFu5lEPcIweBRwtY0D40-gzGzoHsz",
+            appKey: "MtLz7HgbXqLwvLjxzrZw5THT",
+            serverURL: "https://0vbfcfu5.lc-cn-n1-shared.com"
+        });
+        // ===================================
+
+        function proSystem() {
+            return {
+                isAdmin: false, loading: false, step: 'login',
+                user: { team: '', name: '' }, selectedScene: '', rawNames: '',
+                maleList: [], femaleList: [], submittedOrders: [],
+                scenes: [
+                    { name: '集训 TRAINING', icon: 'dumbbell' },
+                    { name: '比赛 MATCH', icon: 'zap' },
+                    { name: '外训 ABROAD', icon: 'plane' }
+                ],
+                products: [
+                    { name: "国家队训练T恤(红)", price: 199, icon: "shirt", image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400&q=80", sizes: ["S","M","L","XL","2XL"] },
+                    { name: "速干运动短裤(黑)", price: 159, icon: "subtitles", image: "", sizes: ["S","M","L","XL","2XL"] },
+                    { name: "加绒保暖卫衣", price: 399, icon: "layers", image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=400&q=80", sizes: ["M","L","XL","2XL"] },
+                    { name: "羽绒防寒服", price: 1299, icon: "snowflake", image: "", sizes: ["L","XL","2XL"] },
+                    { name: "橄榄球专业钉鞋", price: 899, icon: "footprints", image: "", sizes: ["40","41","42","43","44"] },
+                    { name: "战术大容量背包", price: 450, icon: "backpack", image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400&q=80", sizes: ["标准"] }
+                ],
+                cart: [],
+
+                async init() { 
+                    this.refreshIcons(); 
+                    await this.syncSettings(); // 初始化时拉取名单
+                },
+
+                refreshIcons() { setTimeout(() => { if(window.lucide) window.lucide.createIcons(); }, 100); },
+
+                // 管理员登录逻辑
+                loginAdmin() {
+                    const pass = prompt("请输入管理员口令：");
+                    if (pass === "8888") { 
+                        this.isAdmin = true;
+                        this.fetchOrders(); // 登录后自动拉取一次订单
+                        this.refreshIcons();
+                    } else if (pass !== null) {
+                        alert("口令错误。");
+                    }
+                },
+
+                // 从云端拉取名单
+                async syncSettings() {
+                    const query = new AV.Query('Settings');
+                    try {
+                        const results = await query.find();
+                        results.forEach(res => {
+                            if(res.get('key') === 'maleList') this.maleList = res.get('value');
+                            if(res.get('key') === 'femaleList') this.femaleList = res.get('value');
+                        });
+                    } catch(e) { console.error("名单拉取失败", e); }
+                },
+
+                // 从云端拉取所有订单
+                async fetchOrders() {
+                    this.loading = true;
+                    try {
+                        const query = new AV.Query('Order');
+                        query.descending('createdAt');
+                        query.limit(1000);
+                        const results = await query.find();
+                        this.submittedOrders = results.map(r => r.attributes);
+                        this.refreshIcons();
+                    } catch(e) { alert("获取订单失败"); }
+                    this.loading = false;
+                },
+
+                // 提交订单到云端
+                async submitOrder() {
+                    if (this.cart.length === 0) return alert("空空的...");
+                    this.loading = true;
+                    try {
+                        const OrderObj = AV.Object.extend('Order');
+                        const order = new OrderObj();
+                        await order.save({
+                            userName: this.user.name,
+                            team: this.user.team,
+                            scene: this.selectedScene,
+                            items: JSON.parse(JSON.stringify(this.cart)),
+                            total: this.calculateTotal(),
+                            date: new Date().toLocaleString()
+                        });
+                        this.step = 'success';
+                        this.refreshIcons();
+                    } catch(e) {
+                        alert("云端提交失败，请检查网络后再试");
+                    }
+                    this.loading = false;
+                },
+
+                // 同步名单到云端
+                async importNames(team) {
+                    const list = this.rawNames.split('\n').map(n => n.trim()).filter(n => n !== '');
+                    if (list.length === 0) return alert("请输入名单");
+                    this.loading = true;
+                    try {
+                        const query = new AV.Query('Settings');
+                        query.equalTo('key', team === '男队' ? 'maleList' : 'femaleList');
+                        let setting = await query.first();
+                        if(!setting) {
+                            const Settings = AV.Object.extend('Settings');
+                            setting = new Settings();
+                        }
+                        await setting.save({
+                            key: team === '男队' ? 'maleList' : 'femaleList',
+                            value: list
+                        });
+                        await this.syncSettings();
+                        this.rawNames = '';
+                        alert(team + '云端名单同步成功');
+                    } catch(e) { alert("同步失败"); }
+                    this.loading = false;
+                },
+
+                // 清空云端订单
+                async clearOrders() {
+                    if(confirm('确定清空云端所有历史订单吗？此操作不可逆！')) {
+                        this.loading = true;
+                        try {
+                            const query = new AV.Query('Order');
+                            const results = await query.find();
+                            await AV.Object.destroyAll(results);
+                            this.submittedOrders = [];
+                            alert("已清空");
+                        } catch(e) { alert("清空失败"); }
+                        this.loading = false;
+                    }
+                },
+
+                // 其余辅助逻辑（本地计算）
+                getQty(pIdx, size) {
+                    const found = this.cart.find(c => c.pIdx === pIdx && c.size === size);
+                    return found ? found.qty : 0;
+                },
+                updateQty(pIdx, size, delta) {
+                    const idx = this.cart.findIndex(c => c.pIdx === pIdx && c.size === size);
+                    if (idx > -1) {
+                        this.cart[idx].qty += delta;
+                        if (this.cart[idx].qty <= 0) this.cart.splice(idx, 1);
+                    } else if (delta > 0) {
+                        this.cart.push({ pIdx, size, qty: 1 });
+                    }
+                },
+                calculateTotal() { return this.cart.reduce((sum, c) => sum + (c.qty * this.products[c.pIdx].price), 0); },
+                exportSingleOrder(order) {
+                    const rows = order.items.map(item => ({
+                        "申领人": order.userName, "品名": this.products[item.pIdx].name, "尺码": item.size, "数量": item.qty, "总额": order.total, "日期": order.date
+                    }));
+                    const ws = XLSX.utils.json_to_sheet(rows);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "Detail");
+                    XLSX.writeFile(wb, `申请单_${order.userName}.xlsx`);
+                },
+                exportToExcel() {
+                    const allData = [];
+                    this.submittedOrders.forEach(o => o.items.forEach(i => allData.push({ "姓名": o.userName, "队伍": o.team, "产品": this.products[i.pIdx].name, "数量": i.qty, "尺码": i.size, "总额": o.total, "时间": o.date })));
+                    const ws = XLSX.utils.json_to_sheet(allData);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "TotalSummary");
+                    XLSX.writeFile(wb, "国家队申领总表汇总.xlsx");
+                },
+                reset() { this.step = 'login'; this.user = { team: '', name: '' }; this.cart = []; this.refreshIcons(); }
+            }
+        }
+    </script>
+</body>
+</html>
