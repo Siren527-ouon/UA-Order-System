@@ -43,23 +43,23 @@
 
         <div x-show="isAdmin" x-cloak class="space-y-8 animate-fade">
             <div class="flex items-center justify-between border-b pb-4">
-                <h2 class="text-2xl font-black italic uppercase">Admin Dashboard / 系统管理后台</h2>
+                <h2 class="text-2xl font-black italic uppercase">Admin Dashboard / 后台管理</h2>
             </div>
             
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div class="bg-white p-8 rounded-3xl shadow-sm border-t-8 border-china-red">
-                    <h2 class="text-xl font-bold mb-4 flex items-center gap-2"><i data-lucide="user-plus"></i> 名单导入</h2>
-                    <textarea x-model="rawNames" rows="5" class="w-full border p-4 rounded-2xl bg-gray-50 outline-none focus:border-china-red transition" placeholder="每行一个姓名..."></textarea>
+                    <h2 class="text-xl font-bold mb-4 flex items-center gap-2"><i data-lucide="user-plus"></i> 名单管理 (追加模式)</h2>
+                    <textarea x-model="rawNames" rows="5" class="w-full border p-4 rounded-2xl bg-gray-50 outline-none focus:border-china-red transition" placeholder="每行输入一个姓名，点击下方按钮追加到现有名单..."></textarea>
                     <div class="flex gap-4 mt-4">
-                        <button @click="importNames('男队')" class="flex-1 bg-black text-white py-3 rounded-xl font-bold">导入男队</button>
-                        <button @click="importNames('女队')" class="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-bold">导入女队</button>
+                        <button @click="importNames('男队')" class="flex-1 bg-black text-white py-3 rounded-xl font-bold hover:opacity-80 transition">追加到男队</button>
+                        <button @click="importNames('女队')" class="flex-1 bg-gray-200 text-gray-700 py-3 rounded-xl font-bold hover:bg-gray-300 transition">追加到女队</button>
                     </div>
                 </div>
                 <div class="bg-white p-8 rounded-3xl shadow-sm border-t-8 border-blue-600">
-                    <h2 class="text-xl font-bold mb-4 flex items-center gap-2"><i data-lucide="download-cloud"></i> 云端数据汇总</h2>
+                    <h2 class="text-xl font-bold mb-4 flex items-center gap-2"><i data-lucide="download-cloud"></i> 数据统计</h2>
                     <div class="grid grid-cols-2 gap-4">
                         <button @click="fetchOrders()" class="bg-blue-50 text-blue-600 py-4 rounded-2xl font-bold hover:bg-blue-100 transition flex flex-col items-center gap-1">
-                            <i data-lucide="refresh-cw" class="w-5 h-5"></i> 刷新云端订单
+                            <i data-lucide="refresh-cw" class="w-5 h-5"></i> 刷新订单
                         </button>
                         <button @click="exportToExcel()" class="bg-blue-600 text-white py-4 rounded-2xl font-bold hover:bg-blue-700 transition flex flex-col items-center gap-1">
                             <i data-lucide="file-spreadsheet" class="w-5 h-5"></i> 导出汇总表
@@ -70,7 +70,7 @@
             </div>
 
             <div class="bg-white p-6 rounded-3xl shadow-sm overflow-hidden">
-                <h2 class="font-bold mb-4 italic uppercase text-gray-400 text-sm tracking-widest">订单流实时预览 (云端数据)</h2>
+                <h2 class="font-bold mb-4 italic uppercase text-gray-400 text-sm tracking-widest">实时订单预览</h2>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left">
                         <thead class="text-xs text-gray-400 border-b">
@@ -200,20 +200,17 @@
 
     <footer class="mt-20 py-8 text-center">
         <p class="text-gray-300 text-[10px] select-none">
-            © 2025 Team Management System. 
+            © 2026 Team Management System. 
             <span @click="loginAdmin()" class="cursor-pointer hover:text-gray-400 transition-colors">Admin</span>
         </p>
     </footer>
 
     <script>
-        // ======= LeanCloud 初始化配置 =======
-        // 请在此处填入你在 LeanCloud 控制台获取的凭证
         AV.init({
             appId: "0vbfcFu5lEPcIweBRwtY0D40-gzGzoHsz",
             appKey: "MtLz7HgbXqLwvLjxzrZw5THT",
             serverURL: "https://0vbfcfu5.lc-cn-n1-shared.com"
         });
-        // ===================================
 
         function proSystem() {
             return {
@@ -226,6 +223,7 @@
                     { name: '外训 ABROAD', icon: 'plane' }
                 ],
                 products: [
+                    // 修正后的 GitHub 图片链接格式
                     { name: "国家队训练T恤(红)", price: 199, icon: "shirt", image: "https://raw.githubusercontent.com/Siren527-ouon/UA-Order-System/main/%E5%BA%93%E5%AD%981/%E5%9B%BE%E7%89%871.png", sizes: ["S","M","L","XL","2XL"] },
                     { name: "速干运动短裤(黑)", price: 159, icon: "subtitles", image: "", sizes: ["S","M","L","XL","2XL"] },
                     { name: "加绒保暖卫衣", price: 399, icon: "layers", image: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=400&q=80", sizes: ["M","L","XL","2XL"] },
@@ -237,24 +235,22 @@
 
                 async init() { 
                     this.refreshIcons(); 
-                    await this.syncSettings(); // 初始化时拉取名单
+                    await this.syncSettings(); 
                 },
 
                 refreshIcons() { setTimeout(() => { if(window.lucide) window.lucide.createIcons(); }, 100); },
 
-                // 管理员登录逻辑
                 loginAdmin() {
                     const pass = prompt("请输入管理员口令：");
                     if (pass === "8888") { 
                         this.isAdmin = true;
-                        this.fetchOrders(); // 登录后自动拉取一次订单
+                        this.fetchOrders();
                         this.refreshIcons();
                     } else if (pass !== null) {
                         alert("口令错误。");
                     }
                 },
 
-                // 从云端拉取名单
                 async syncSettings() {
                     const query = new AV.Query('Settings');
                     try {
@@ -266,7 +262,6 @@
                     } catch(e) { console.error("名单拉取失败", e); }
                 },
 
-                // 从云端拉取所有订单
                 async fetchOrders() {
                     this.loading = true;
                     try {
@@ -280,7 +275,6 @@
                     this.loading = false;
                 },
 
-                // 提交订单到云端
                 async submitOrder() {
                     if (this.cart.length === 0) return alert("空空的...");
                     this.loading = true;
@@ -297,39 +291,43 @@
                         });
                         this.step = 'success';
                         this.refreshIcons();
-                    } catch(e) {
-                        alert("云端提交失败，请检查网络后再试");
-                    }
+                    } catch(e) { alert("云端提交失败"); }
                     this.loading = false;
                 },
 
-                // 同步名单到云端
+                // 核心修改：追加模式导入名单
                 async importNames(team) {
-                    const list = this.rawNames.split('\n').map(n => n.trim()).filter(n => n !== '');
-                    if (list.length === 0) return alert("请输入名单");
+                    const newNames = this.rawNames.split('\n').map(n => n.trim()).filter(n => n !== '');
+                    if (newNames.length === 0) return alert("请输入名单");
+                    
                     this.loading = true;
                     try {
                         const query = new AV.Query('Settings');
-                        query.equalTo('key', team === '男队' ? 'maleList' : 'femaleList');
+                        const keyName = team === '男队' ? 'maleList' : 'femaleList';
+                        query.equalTo('key', keyName);
                         let setting = await query.first();
+                        
                         if(!setting) {
                             const Settings = AV.Object.extend('Settings');
                             setting = new Settings();
+                            setting.set('key', keyName);
+                            setting.set('value', []);
                         }
-                        await setting.save({
-                            key: team === '男队' ? 'maleList' : 'femaleList',
-                            value: list
-                        });
+
+                        let oldList = setting.get('value') || [];
+                        // 合并并去重
+                        let updatedList = Array.from(new Set([...oldList, ...newNames]));
+
+                        await setting.save({ value: updatedList });
                         await this.syncSettings();
                         this.rawNames = '';
-                        alert(team + '云端名单同步成功');
+                        alert(team + "名单已更新，当前共 " + updatedList.length + " 人");
                     } catch(e) { alert("同步失败"); }
                     this.loading = false;
                 },
 
-                // 清空云端订单
                 async clearOrders() {
-                    if(confirm('确定清空云端所有历史订单吗？此操作不可逆！')) {
+                    if(confirm('确定清空所有订单吗？')) {
                         this.loading = true;
                         try {
                             const query = new AV.Query('Order');
@@ -342,7 +340,6 @@
                     }
                 },
 
-                // 其余辅助逻辑（本地计算）
                 getQty(pIdx, size) {
                     const found = this.cart.find(c => c.pIdx === pIdx && c.size === size);
                     return found ? found.qty : 0;
@@ -368,18 +365,15 @@
                 },
                 exportToExcel() {
                     const allData = [];
-                    this.submittedOrders.forEach(o => o.items.forEach(i => allData.push({ "姓名": o.userName, "队伍": o.team, "产品": this.products[i.pIdx].name, "数量": i.qty, "尺码": i.size, "总额": o.total, "时间": o.date })));
+                    this.submittedOrders.forEach(o => o.items.forEach(i => allData.push({ "姓名": o.userName, "队伍": o.team, "产品": this.products[i.pIdx].name, "数量": i.qty, "尺码": i.size, "总金额": o.total, "时间": o.date })));
                     const ws = XLSX.utils.json_to_sheet(allData);
                     const wb = XLSX.utils.book_new();
                     XLSX.utils.book_append_sheet(wb, ws, "TotalSummary");
-                    XLSX.writeFile(wb, "国家队申领总表汇总.xlsx");
+                    XLSX.writeFile(wb, "国家队申领汇总表.xlsx");
                 },
                 reset() { this.step = 'login'; this.user = { team: '', name: '' }; this.cart = []; this.refreshIcons(); }
             }
         }
     </script>
 </body>
-
 </html>
-
-
